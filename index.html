@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Demolition Derby - Menus & HUD</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Arial Black', 'Impact', sans-serif;
+  background: #1a0f0a;
+  color: #f5e6c8;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+.screen {
+  display: none;
+  position: absolute;
+  inset: 0;
+  padding: 20px;
+  background: linear-gradient(180deg, #2a1a10 0%, #0d0705 100%);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.screen.active { display: flex; }
+.plywood {
+  background: #c4a574;
+  border: 8px solid #8b5e3c;
+  border-radius: 4px;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.4), 0 10px 30px rgba(0,0,0,0.6);
+  padding: 20px 30px;
+  color: #2a1a10;
+  text-shadow: 1px 1px 0 #f5e6c8;
+  max-width: 90%;
+}
+h1, h2 { font-size: clamp(2rem, 8vw, 4rem); letter-spacing: 2px; text-transform: uppercase; }
+.btn {
+  background: #d4a017;
+  border: 4px solid #8b5e3c;
+  color: #1a0f0a;
+  font-size: clamp(1.2rem, 5vw, 2rem);
+  padding: 12px 30px;
+  margin: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  text-transform: uppercase;
+  box-shadow: 0 4px 0 #6b4510;
+  transition: transform 0.1s;
+}
+.btn:active { transform: translateY(4px); box-shadow: none; }
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 15px;
+  max-width: 800px;
+  width: 100%;
+  margin: 20px 0;
+}
+.vehicle-card {
+  background: #3a2a1a;
+  border: 4px solid #8b5e3c;
+  padding: 15px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.vehicle-card.selected { border-color: #d4a017; background: #5a3a1a; }
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  text-shadow: 2px 2px 4px #000;
+}
+.hud-top, .hud-bottom { position: absolute; left: 10px; right: 10px; display: flex; justify-content: space-between; }
+.hud-top { top: 10px; }
+.hud-bottom { bottom: 10px; }
+.meter {
+  width: 120px;
+  height: 20px;
+  background: #333;
+  border: 2px solid #8b5e3c;
+  position: relative;
+}
+.meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f0, #ff0, #f00);
+  width: 0%;
+  transition: width 0.2s;
+}
+.damage-outline {
+  width: 80px;
+  height: 40px;
+  border: 3px solid #fff;
+  border-radius: 10px;
+  position: relative;
+  background: rgba(0,0,0,0.5);
+}
+.damage-outline .panel { position: absolute; background: #f00; opacity: 0.7; }
+.damage-outline .front { top: 0; left: 25%; width: 50%; height: 20%; }
+.damage-outline .rear { bottom: 0; left: 25%; width: 50%; height: 20%; }
+.damage-outline .left { left: 0; top: 20%; width: 20%; height: 60%; }
+.damage-outline .right { right: 0; top: 20%; width: 20%; height: 60%; }
+.stall-timer { font-size: 1.5rem; color: #ff0; }
+.stall-timer.warning { color: #f00; animation: blink 0.5s infinite; }
+@keyframes blink { 50% { opacity: 0.3; } }
+@media (max-width: 600px) {
+  .btn { padding: 10px 20px; }
+  .vehicle-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div id="title" class="screen active">
+  <div class="plywood">
+    <h1>County Fair<br>Demolition Derby</h1>
+    <p style="margin: 15px 0; font-size: 1.2rem;">Last car moving wins!</p>
+    <button class="btn" data-event="startHeat">Start Heat</button>
+  </div>
+</div>
+
+<div id="vehiclePick" class="screen">
+  <h2>Pick Your Ride</h2>
+  <div class="vehicle-grid" id="vehicleList"></div>
+  <button class="btn" data-event="confirmVehicle">Confirm</button>
+</div>
+
+<div id="heatIntro" class="screen">
+  <div class="plywood">
+    <h2>Heat 1</h2>
+    <p>Get ready to smash!</p>
+    <button class="btn" data-event="beginHeat">Begin!</button>
+  </div>
+</div>
+
+<div id="inGame" class="screen">
+  <div class="hud">
+    <div class="hud-top">
+      <div>Speed: <span id="speed">0</span> mph</div>
+      <div>Cars left: <span id="carsLeft">8</span></div>
+    </div>
+    <div class="hud-bottom">
+      <div class="damage-outline" id="damageOutline">
+        <div class="panel front" style="display:none"></div>
+        <div class="panel rear" style="display:none"></div>
+        <div class="panel left" style="display:none"></div>
+        <div class="panel right" style="display:none"></div>
+      </div>
+      <div>
+        Radiator: <div class="meter"><div class="meter-fill" id="radiator"></div></div>
+      </div>
+      <div class="stall-timer" id="stallTimer">60s</div>
+    </div>
+  </div>
+  <button class="btn" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:auto;" data-event="pause">Pause (demo)</button>
+</div>
+
+<div id="pause" class="screen">
+  <div class="plywood">
+    <h2>Paused</h2>
+    <button class="btn" data-event="resume">Resume</button>
+    <button class="btn" data-event="restart">Restart</button>
+  </div>
+</div>
+
+<div id="elimination" class="screen">
+  <div class="plywood">
+    <h2>You're Out!</h2>
+    <p>Better luck next heat.</p>
+    <button class="btn" data-event="restart">Try Again</button>
+  </div>
+</div>
+
+<div id="results" class="screen">
+  <div class="plywood">
+    <h2>Results</h2>
+    <p id="resultText">You survived!</p>
+    <button class="btn" data-event="restart">Play Again</button>
+  </div>
+</div>
+
+<script>
+const state = {
+  screen: 'title',
+  selectedVehicle: null,
+  speed: 0,
+  radiator: 30,
+  stallTime: 60,
+  carsLeft: 8,
+  damage: { front: false, rear: false, left: false, right: false }
+};
+
+const vehicles = [
+  { id: 'camry', name: 'Fair Camry' },
+  { id: 'muscle', name: 'Muscle Crusher' },
+  { id: 'pickup65', name: '65 Hauler' },
+  { id: 'squarebody', name: 'Squarebody' },
+  { id: 'modern', name: 'Modern Truck' },
+  { id: 'woody', name: 'Woody Wagon' },
+  { id: 'delorean', name: 'Time Machine' },
+  { id: 'mclaren', name: 'Speed Demon' },
+  { id: 'convertible', name: 'Red Drop Top' }
+];
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(name);
+  if (el) el.classList.add('active');
+  state.screen = name;
+  if (name === 'vehiclePick') renderVehicles();
+  if (name === 'inGame') updateHUD();
+}
+
+function renderVehicles() {
+  const list = document.getElementById('vehicleList');
+  list.innerHTML = '';
+  vehicles.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'vehicle-card' + (state.selectedVehicle === v.id ? ' selected' : '');
+    card.textContent = v.name;
+    card.onclick = () => { state.selectedVehicle = v.id; renderVehicles(); };
+    list.appendChild(card);
+  });
+}
+
+function updateHUD() {
+  document.getElementById('speed').textContent = Math.round(state.speed);
+  document.getElementById('carsLeft').textContent = state.carsLeft;
+  document.getElementById('radiator').style.width = state.radiator + '%';
+  const timer = document.getElementById('stallTimer');
+  timer.textContent = Math.max(0, Math.ceil(state.stallTime)) + 's';
+  timer.classList.toggle('warning', state.stallTime < 15);
+  const outline = document.getElementById('damageOutline');
+  ['front','rear','left','right'].forEach(side => {
+    const panel = outline.querySelector('.' + side);
+    if (panel) panel.style.display = state.damage[side] ? 'block' : 'none';
+  });
+}
+
+function handleEvent(eventName, data) {
+  console.log('Event:', eventName, data);
+  switch (eventName) {
+    case 'startHeat': showScreen('vehiclePick'); break;
+    case 'confirmVehicle': if (state.selectedVehicle) showScreen('heatIntro'); break;
+    case 'beginHeat': showScreen('inGame'); startDemo(); break;
+    case 'pause': showScreen('pause'); break;
+    case 'resume': showScreen('inGame'); break;
+    case 'restart': showScreen('title'); state.stallTime = 60; break;
+    case 'pickVehicle': state.selectedVehicle = data; break;
+  }
+}
+
+document.querySelectorAll('[data-event]').forEach(btn => {
+  btn.addEventListener('click', () => handleEvent(btn.dataset.event));
+});
+
+// Demo simulation
+let demoInterval;
+function startDemo() {
+  clearInterval(demoInterval);
+  demoInterval = setInterval(() => {
+    state.speed = 20 + Math.random() * 40;
+    state.radiator = Math.min(100, state.radiator + Math.random() * 2);
+    state.stallTime -= 0.5;
+    if (Math.random() < 0.1) state.damage.front = true;
+    if (state.stallTime <= 0) {
+      clearInterval(demoInterval);
+      showScreen('elimination');
+    }
+    updateHUD();
+  }, 500);
+}
+
+// Keyboard / gamepad support placeholders
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && state.screen === 'inGame') handleEvent('pause');
+  if (e.key === 'Enter') {
+    const activeBtn = document.querySelector('.screen.active .btn');
+    if (activeBtn) activeBtn.click();
+  }
+});
+
+// Touch friendly already via buttons
+
+showScreen('title');
+</script>
+</body>
+</html>
